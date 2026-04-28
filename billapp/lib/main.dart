@@ -278,6 +278,9 @@ class _BillingSuiteState extends State<BillingSuite>
   TextEditingController holesController = TextEditingController();
   TextEditingController designCostController = TextEditingController();
   TextEditingController invDateController = TextEditingController();
+  TextEditingController transportCostController = TextEditingController(
+    text: '0',
+  );
 
   // New: Item type selection
   String selectedItemType = 'both'; // 'both' or 'print_only'
@@ -372,6 +375,7 @@ class _BillingSuiteState extends State<BillingSuite>
     printRateController.dispose();
     holeRateController.dispose();
     polishRateController.dispose();
+    transportCostController.dispose();
     super.dispose();
   }
 
@@ -690,10 +694,12 @@ class _BillingSuiteState extends State<BillingSuite>
   // Calculate grand total
   double getGrandTotal() {
     double subTotal = getSubTotal();
+    double transport = double.tryParse(transportCostController.text) ?? 0.0;
+    double baseTotal = subTotal + transport;
     if (includeGST) {
-      return subTotal + (subTotal * 0.18);
+      return baseTotal + (baseTotal * 0.18);
     }
-    return subTotal;
+    return baseTotal;
   }
 
   // Update customer balance after bill
@@ -987,6 +993,13 @@ class _BillingSuiteState extends State<BillingSuite>
                     ],
                   )
                   .toList(),
+              footerData: [
+                'Transport Cost',
+                '',
+                '',
+                '',
+                '₹ ${(double.tryParse(transportCostController.text) ?? 0).toStringAsFixed(2)}',
+              ],
               headerStyle: pw.TextStyle(
                 fontWeight: pw.FontWeight.bold,
                 fontSize: 11,
@@ -1737,6 +1750,7 @@ class _BillingSuiteState extends State<BillingSuite>
                 heightController.clear();
                 qtyController.text = '1';
                 holesController.text = '0';
+                transportCostController.text = '0';
                 selectedItemType = 'both';
               });
               Navigator.pop(context);
@@ -2423,7 +2437,39 @@ class _BillingSuiteState extends State<BillingSuite>
                           ],
                         ),
                         const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                       ],
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'Transport: ',
+                            style: TextStyle(fontSize: 14),
+                          ),
+                          SizedBox(
+                            width: 100,
+                            height: 30,
+                            child: TextField(
+                              controller: transportCostController,
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(fontSize: 14),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (val) {
+                                setState(() {});
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
