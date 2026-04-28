@@ -382,7 +382,7 @@ class _SummaryChip extends StatelessWidget {
     
     // In dark mode, we lighten the icon/text color for better contrast
     // against the dark background, since the original colors are quite dark.
-    final displayColor = isDark ? color.withOpacity(0.8) : color;
+    final displayColor = isDark ? color.withValues(alpha: 0.8) : color;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -498,18 +498,18 @@ class _OrderCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: isDark ? cfg.color.withOpacity(0.2) : cfg.bgColor,
+                    color: isDark ? cfg.color.withValues(alpha: 0.2) : cfg.bgColor,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(cfg.icon, size: 12, color: isDark ? cfg.color.withOpacity(0.8) : cfg.color),
+                      Icon(cfg.icon, size: 12, color: isDark ? cfg.color.withValues(alpha: 0.8) : cfg.color),
                       const SizedBox(width: 3),
                       Text(cfg.label,
                           style: TextStyle(
                               fontSize: 11,
-                              color: isDark ? cfg.color.withOpacity(0.8) : cfg.color,
+                              color: isDark ? cfg.color.withValues(alpha: 0.8) : cfg.color,
                               fontWeight: FontWeight.bold)),
                     ],
                   ),
@@ -548,7 +548,7 @@ class _OrderCard extends StatelessWidget {
                                 fit: BoxFit.cover,
                                 width: 90,
                                 height: 90,
-                                errorBuilder: (_, __, ___) => const Center(
+                                errorBuilder: (_, _, _) => const Center(
                                     child: Icon(Icons.broken_image,
                                         color: Colors.grey)),
                               ),
@@ -580,7 +580,7 @@ class _OrderCard extends StatelessWidget {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: Colors.blueAccent.withOpacity(0.9),
+                                    color: Colors.blueAccent.withValues(alpha: 0.9),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
@@ -678,7 +678,7 @@ class _OrderCard extends StatelessWidget {
                                 ? [
                                     BoxShadow(
                                         color: e.value.color
-                                            .withOpacity(0.3),
+                                            .withValues(alpha: 0.3),
                                         blurRadius: 6,
                                         offset: const Offset(0, 2))
                                   ]
@@ -779,7 +779,7 @@ class _ImageGalleryDialogState extends State<_ImageGalleryDialog> {
                 child: Image.file(
                   File(widget.images[i].path),
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Center(
+                  errorBuilder: (_, _, _) => const Center(
                     child: Icon(Icons.broken_image,
                         size: 80, color: Colors.white30),
                   ),
@@ -1340,7 +1340,7 @@ class _OrderFormSheetState extends State<_OrderFormSheet> {
                                             fit: BoxFit.cover,
                                             width: double.infinity,
                                             height: double.infinity,
-                                            errorBuilder: (_, __, ___) => Container(
+                                            errorBuilder: (_, _, _) => Container(
                                               color: Colors.grey.shade200,
                                               child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
                                             ),
@@ -1462,7 +1462,7 @@ class _OrderFormSheetState extends State<_OrderFormSheet> {
                                       ? [
                                           BoxShadow(
                                             color: e.value.color
-                                                .withOpacity(0.35),
+                                                .withValues(alpha: 0.35),
                                             blurRadius: 8,
                                             offset:
                                                 const Offset(0, 3),
@@ -1580,9 +1580,9 @@ class _SourceButton extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
-              border: Border.all(color: color.withOpacity(0.3)),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
             ),
             child: Icon(icon, color: color, size: 30),
           ),

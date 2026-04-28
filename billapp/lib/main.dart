@@ -29,14 +29,14 @@ class MyApp extends StatefulWidget {
   final ThemeMode initialTheme;
   const MyApp({super.key, required this.initialTheme});
 
-  static _MyAppState of(BuildContext context) =>
-      context.findAncestorStateOfType<_MyAppState>()!;
+  static MyAppState of(BuildContext context) =>
+      context.findAncestorStateOfType<MyAppState>()!;
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  State<MyApp> createState() => MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class MyAppState extends State<MyApp> {
   late ThemeMode _themeMode;
 
   @override
@@ -417,11 +417,13 @@ class _BillingSuiteState extends State<BillingSuite>
       });
       saveSettings();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid glass rate. Please enter a positive number.'),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid glass rate. Please enter a positive number.'),
+          ),
+        );
+      }
       glassRateController.text = settings.glassRate.toString();
     }
   }
@@ -627,10 +629,10 @@ class _BillingSuiteState extends State<BillingSuite>
 
     if (qty < 1) qty = 1;
 
-    double w_in = inputUnit == 'mm' ? w / 25.4 : w;
-    double h_in = inputUnit == 'mm' ? h / 25.4 : h;
+    double wIn = inputUnit == 'mm' ? w / 25.4 : w;
+    double hIn = inputUnit == 'mm' ? h / 25.4 : h;
 
-    var costs = computeCosts(w_in, h_in, selectedItemType, selectedThickness);
+    var costs = computeCosts(wIn, hIn, selectedItemType, selectedThickness);
     double holeCost = holes * settings.holeRate;
     double polishCost = 0.0;
     if (selectedItemType == 'both' && applyPolish) {
@@ -778,22 +780,22 @@ class _BillingSuiteState extends State<BillingSuite>
     ];
 
     String convert(int n) {
-      if (n < 20) return units[n];
-      if (n < 100)
-        return tens[n ~/ 10] + (n % 10 != 0 ? ' ' + units[n % 10] : '');
-      if (n < 1000)
-        return units[n ~/ 100] +
-            ' Hundred' +
-            (n % 100 != 0 ? ' and ' + convert(n % 100) : '');
-      if (n < 100000)
-        return convert(n ~/ 1000) +
-            ' Thousand' +
-            (n % 1000 != 0 ? ' ' + convert(n % 1000) : '');
-      if (n < 10000000)
-        return convert(n ~/ 100000) +
-            ' Lakh' +
-            (n % 100000 != 0 ? ' ' + convert(n % 100000) : '');
-      return '${convert(n ~/ 10000000)} Crore${n % 10000000 != 0 ? ' ' + convert(n % 10000000) : ''}';
+      if (n < 20) {
+        return units[n];
+      }
+      if (n < 100) {
+        return "${tens[n ~/ 10]}${n % 10 != 0 ? ' ${units[n % 10]}' : ''}";
+      }
+      if (n < 1000) {
+        return "${units[n ~/ 100]} Hundred${n % 100 != 0 ? ' and ${convert(n % 100)}' : ''}";
+      }
+      if (n < 100000) {
+        return "${convert(n ~/ 1000)} Thousand${n % 1000 != 0 ? ' ${convert(n % 1000)}' : ''}";
+      }
+      if (n < 10000000) {
+        return "${convert(n ~/ 100000)} Lakh${n % 100000 != 0 ? ' ${convert(n % 100000)}' : ''}";
+      }
+      return "${convert(n ~/ 10000000)} Crore${n % 10000000 != 0 ? ' ${convert(n % 10000000)}' : ''}";
     }
 
     return convert(number);
@@ -974,7 +976,7 @@ class _BillingSuiteState extends State<BillingSuite>
               ),
             ),
             pw.SizedBox(height: 20),
-            pw.Table.fromTextArray(
+            pw.TableHelper.fromTextArray(
               headers: [
                 'Item Description',
                 'Dimensions',
@@ -982,23 +984,23 @@ class _BillingSuiteState extends State<BillingSuite>
                 'Qty',
                 'Amount (₹)',
               ],
-              data: currentBillItems
-                  .map(
-                    (item) => [
-                      '${item.desc}\n${item.itemType == 'both' ? 'Glass: ${item.thickness} | ${item.rw}"×${item.rh}"' : 'Print Only'}${item.holes > 0 ? '\nHoles: ${item.holes}' : ''}${item.hasPolish ? '\nPolish Applied' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
-                      '${item.w}${item.dimUnit == 'mm' ? 'mm' : '"'} × ${item.h}${item.dimUnit == 'mm' ? 'mm' : '"'}',
-                      item.itemType == 'both' ? 'Glass + Print' : 'Print Only',
-                      item.qty.toString(),
-                      '₹ ${item.total.toStringAsFixed(2)}',
-                    ],
-                  )
-                  .toList(),
-              footerData: [
-                'Transport Cost',
-                '',
-                '',
-                '',
-                '₹ ${(double.tryParse(transportCostController.text) ?? 0).toStringAsFixed(2)}',
+              data: [
+                ...currentBillItems.map(
+                  (item) => [
+                    '${item.desc}\n${item.itemType == 'both' ? 'Glass: ${item.thickness} | ${item.rw}"×${item.rh}"' : 'Print Only'}${item.holes > 0 ? '\nHoles: ${item.holes}' : ''}${item.hasPolish ? '\nPolish Applied' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
+                    '${item.w}${item.dimUnit == 'mm' ? 'mm' : '"'} × ${item.h}${item.dimUnit == 'mm' ? 'mm' : '"'}',
+                    item.itemType == 'both' ? 'Glass + Print' : 'Print Only',
+                    item.qty.toString(),
+                    '₹ ${item.total.toStringAsFixed(2)}',
+                  ],
+                ),
+                [
+                  'Transport Cost',
+                  '',
+                  '',
+                  '',
+                  '₹ ${(double.tryParse(transportCostController.text) ?? 0).toStringAsFixed(2)}',
+                ],
               ],
               headerStyle: pw.TextStyle(
                 fontWeight: pw.FontWeight.bold,
@@ -1245,10 +1247,10 @@ class _BillingSuiteState extends State<BillingSuite>
 
     await saveCustomers();
 
-    // Generate PDF for this payment
-    await generatePaymentReceiptPDF(selectedPaymentCustomer!, payment);
-
     if (mounted) {
+      // Generate PDF for this payment
+      await generatePaymentReceiptPDF(selectedPaymentCustomer!, payment);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1673,9 +1675,11 @@ class _BillingSuiteState extends State<BillingSuite>
       final file = File(path);
 
       if (file.existsSync()) {
-        await Share.shareXFiles([
-          XFile(path),
-        ], text: 'Sri Gayathri Digital Bills Excel Report');
+        if (mounted) {
+          await Share.shareXFiles([
+            XFile(path),
+          ], text: 'Sri Gayathri Digital Bills Excel Report');
+        }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1782,7 +1786,7 @@ class _BillingSuiteState extends State<BillingSuite>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                 ),
               ],
@@ -1842,7 +1846,7 @@ class _BillingSuiteState extends State<BillingSuite>
                   ),
                   decoration: BoxDecoration(
                     color: isDark
-                        ? const Color(0xFF1d6f96).withOpacity(0.3)
+                        ? const Color(0xFF1d6f96).withValues(alpha: 0.3)
                         : Colors.blue.shade800,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
@@ -2159,7 +2163,7 @@ class _BillingSuiteState extends State<BillingSuite>
                           controller: widthController,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            labelText: 'Width (${inputUnit})',
+                            labelText: 'Width ($inputUnit)',
                             prefixIcon: const Icon(Icons.arrow_left),
                             border: const OutlineInputBorder(
                               borderRadius: BorderRadius.all(
@@ -2175,7 +2179,7 @@ class _BillingSuiteState extends State<BillingSuite>
                           controller: heightController,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            labelText: 'Height (${inputUnit})',
+                            labelText: 'Height ($inputUnit)',
                             prefixIcon: const Icon(Icons.arrow_upward),
                             border: const OutlineInputBorder(
                               borderRadius: BorderRadius.all(
@@ -2511,7 +2515,7 @@ class _BillingSuiteState extends State<BillingSuite>
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               value: includeGST,
-              activeColor: Colors.blue.shade700,
+              activeThumbColor: Colors.blue.shade700,
               onChanged: (bool value) {
                 setState(() {
                   includeGST = value;
@@ -3518,7 +3522,7 @@ class _BillingSuiteState extends State<BillingSuite>
             Icon(
               Icons.picture_as_pdf_outlined,
               size: 64,
-              color: Colors.grey.withOpacity(0.5),
+              color: Colors.grey.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
