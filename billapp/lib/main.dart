@@ -204,6 +204,7 @@ class BillItem {
   double total;
   String itemType; // 'both' or 'print_only'
   String dimUnit; // 'in' or 'mm'
+  String thickness; // '4mm', '5mm', etc.
 
   BillItem({
     required this.desc,
@@ -213,6 +214,7 @@ class BillItem {
     required this.rh,
     required this.qty,
     this.dimUnit = 'in',
+    this.thickness = '5mm',
     this.holes = 0,
     this.holeCost = 0.0,
     this.hasPolish = false,
@@ -310,6 +312,15 @@ class _BillingSuiteState extends State<BillingSuite>
 
   // Saved PDFs
   List<SavedPdf> savedPdfs = [];
+
+  // Glass Thickness selection
+  String selectedThickness = '5mm';
+  final Map<String, double> thicknessRates = {
+    '4mm': 55.0,
+    '5mm': 65.0,
+    '6mm': 75.0,
+    '8mm': 80.0,
+  };
 
   @override
   void initState() {
@@ -552,7 +563,12 @@ class _BillingSuiteState extends State<BillingSuite>
   }
 
   // Compute costs for an item based on type
-  Map<String, dynamic> computeCosts(double w, double h, String itemType) {
+  Map<String, dynamic> computeCosts(
+    double w,
+    double h,
+    String itemType,
+    String thickness,
+  ) {
     int rw = roundUpTo3(w);
     int rh = roundUpTo3(h);
     double glassAreaSqFt = (rw * rh) / 144;
@@ -561,8 +577,10 @@ class _BillingSuiteState extends State<BillingSuite>
     double glassCost = 0;
     double printCost = 0;
 
+    double currentGlassRate = thicknessRates[thickness] ?? settings.glassRate;
+
     if (itemType == 'both') {
-      glassCost = glassAreaSqFt * settings.glassRate;
+      glassCost = glassAreaSqFt * currentGlassRate;
       printCost = printAreaSqFt * settings.printRate;
     } else if (itemType == 'print_only') {
       glassCost = 0;
@@ -608,7 +626,7 @@ class _BillingSuiteState extends State<BillingSuite>
     double w_in = inputUnit == 'mm' ? w / 25.4 : w;
     double h_in = inputUnit == 'mm' ? h / 25.4 : h;
 
-    var costs = computeCosts(w_in, h_in, selectedItemType);
+    var costs = computeCosts(w_in, h_in, selectedItemType, selectedThickness);
     double holeCost = holes * settings.holeRate;
     double polishCost = 0.0;
     if (selectedItemType == 'both' && applyPolish) {
@@ -642,6 +660,7 @@ class _BillingSuiteState extends State<BillingSuite>
           printCost: costs['printCost'],
           total: total,
           itemType: selectedItemType,
+          thickness: selectedThickness,
         ),
       );
 
@@ -960,7 +979,7 @@ class _BillingSuiteState extends State<BillingSuite>
               data: currentBillItems
                   .map(
                     (item) => [
-                      '${item.desc}\n${item.itemType == 'both' ? 'Glass: ${item.rw}"×${item.rh}"' : 'Print Only'}${item.holes > 0 ? '\nHoles: ${item.holes}' : ''}${item.hasPolish ? '\nPolish Applied' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
+                      '${item.desc}\n${item.itemType == 'both' ? 'Glass: ${item.thickness} | ${item.rw}"×${item.rh}"' : 'Print Only'}${item.holes > 0 ? '\nHoles: ${item.holes}' : ''}${item.hasPolish ? '\nPolish Applied' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
                       '${item.w}${item.dimUnit == 'mm' ? 'mm' : '"'} × ${item.h}${item.dimUnit == 'mm' ? 'mm' : '"'}',
                       item.itemType == 'both' ? 'Glass + Print' : 'Print Only',
                       item.qty.toString(),
@@ -2039,6 +2058,57 @@ class _BillingSuiteState extends State<BillingSuite>
                     ),
                   ),
                   const SizedBox(height: 12),
+
+                  // Glass Thickness Selection
+                  if (selectedItemType == 'both') ...[
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Glass Thickness:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: thicknessRates.keys.map((thickness) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: Text(
+                                '$thickness (₹${thicknessRates[thickness]?.toInt()})',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: selectedThickness == thickness
+                                      ? Colors.white
+                                      : null,
+                                ),
+                              ),
+                              selected: selectedThickness == thickness,
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setState(() {
+                                    selectedThickness = thickness;
+                                  });
+                                }
+                              },
+                              selectedColor: Colors.blue.shade700,
+                              checkmarkColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
                   Row(
                     children: [
                       const Text(
