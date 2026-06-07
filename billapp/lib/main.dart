@@ -171,20 +171,20 @@ class SavedPdf {
   });
 
   Map<String, dynamic> toJson() => {
-        'fileName': fileName,
-        'filePath': filePath,
-        'customerName': customerName,
-        'date': date,
-        'type': type,
-      };
+    'fileName': fileName,
+    'filePath': filePath,
+    'customerName': customerName,
+    'date': date,
+    'type': type,
+  };
 
   factory SavedPdf.fromJson(Map<String, dynamic> json) => SavedPdf(
-        fileName: json['fileName'] ?? '',
-        filePath: json['filePath'] ?? '',
-        customerName: json['customerName'] ?? 'Unknown',
-        date: json['date'] ?? '',
-        type: json['type'] ?? 'Invoice',
-      );
+    fileName: json['fileName'] ?? '',
+    filePath: json['filePath'] ?? '',
+    customerName: json['customerName'] ?? 'Unknown',
+    date: json['date'] ?? '',
+    type: json['type'] ?? 'Invoice',
+  );
 }
 
 class BillItem {
@@ -234,24 +234,46 @@ class AppSettings {
 
   double glassRate = 65.0; // ₹ per sqft
   double printRate = 180.0; // ₹ per sqft
+  double paintRate = 100.0; // ₹ per sqft
   double holeRate = 25.0; // ₹ per hole
   double polishRate = 15.0; // ₹ per foot
+  int sizeMultiple = 3; // Round up size multiple (3 or 6)
+
+  Map<String, double> thicknessRates = {
+    '4mm': 55.0,
+    '5mm': 65.0,
+    '6mm': 75.0,
+    '8mm': 80.0,
+    '12mm': 120.0,
+  };
 
   AppSettings();
 
   Map<String, dynamic> toJson() => {
     'glassRate': glassRate,
     'printRate': printRate,
+    'paintRate': paintRate,
     'holeRate': holeRate,
     'polishRate': polishRate,
+    'thicknessRates': thicknessRates,
+    'sizeMultiple': sizeMultiple,
   };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     AppSettings settings = AppSettings();
     settings.glassRate = (json['glassRate'] ?? 65.0).toDouble();
     settings.printRate = (json['printRate'] ?? 180.0).toDouble();
+    settings.paintRate = (json['paintRate'] ?? 100.0).toDouble();
     settings.holeRate = (json['holeRate'] ?? 25.0).toDouble();
-    settings.polishRate = (json['polishRate'] ?? 5.0).toDouble();
+    settings.polishRate = (json['polishRate'] ?? 15.0).toDouble();
+    settings.sizeMultiple = json['sizeMultiple'] ?? 3;
+    if (json['thicknessRates'] != null) {
+      settings.thicknessRates = (json['thicknessRates'] as Map<String, dynamic>)
+          .map((key, value) => MapEntry(key, value.toDouble()));
+      if (!settings.thicknessRates.containsKey('12mm')) {
+        settings.thicknessRates['12mm'] = 120.0;
+      }
+    }
     return settings;
   }
 }
@@ -271,6 +293,7 @@ class _BillingSuiteState extends State<BillingSuite>
   // Bill data
   List<BillItem> currentBillItems = [];
   TextEditingController custNameController = TextEditingController();
+  TextEditingController custGstController = TextEditingController();
   TextEditingController itemDescController = TextEditingController();
   TextEditingController widthController = TextEditingController();
   TextEditingController heightController = TextEditingController();
@@ -285,6 +308,7 @@ class _BillingSuiteState extends State<BillingSuite>
   // New: Item type selection
   String selectedItemType = 'both'; // 'both' or 'print_only'
   String inputUnit = 'in'; // 'in' or 'mm'
+  int currentSizeMultiple = 3;
 
   // Glass Polish
   bool applyPolish = false;
@@ -302,6 +326,10 @@ class _BillingSuiteState extends State<BillingSuite>
   TextEditingController newCustNameController = TextEditingController();
   TextEditingController newCustBalanceController = TextEditingController();
 
+  // Customer search
+  TextEditingController customerSearchController = TextEditingController();
+  String customerSearchQuery = '';
+
   // Payment form
   Customer? selectedPaymentCustomer;
   TextEditingController paymentAmountController = TextEditingController();
@@ -310,6 +338,7 @@ class _BillingSuiteState extends State<BillingSuite>
   AppSettings settings = AppSettings();
   TextEditingController glassRateController = TextEditingController();
   TextEditingController printRateController = TextEditingController();
+  TextEditingController paintRateController = TextEditingController();
   TextEditingController holeRateController = TextEditingController();
   TextEditingController polishRateController = TextEditingController();
 
@@ -318,12 +347,13 @@ class _BillingSuiteState extends State<BillingSuite>
 
   // Glass Thickness selection
   String selectedThickness = '5mm';
-  final Map<String, double> thicknessRates = {
-    '4mm': 55.0,
-    '5mm': 65.0,
-    '6mm': 75.0,
-    '8mm': 80.0,
-  };
+
+  // Controllers for thickness rates in settings
+  TextEditingController rate4mmController = TextEditingController();
+  TextEditingController rate5mmController = TextEditingController();
+  TextEditingController rate6mmController = TextEditingController();
+  TextEditingController rate8mmController = TextEditingController();
+  TextEditingController rate12mmController = TextEditingController();
 
   @override
   void initState() {
@@ -361,6 +391,7 @@ class _BillingSuiteState extends State<BillingSuite>
   void dispose() {
     _tabController.dispose();
     custNameController.dispose();
+    custGstController.dispose();
     itemDescController.dispose();
     widthController.dispose();
     heightController.dispose();
@@ -370,11 +401,18 @@ class _BillingSuiteState extends State<BillingSuite>
     invDateController.dispose();
     newCustNameController.dispose();
     newCustBalanceController.dispose();
+    customerSearchController.dispose();
     paymentAmountController.dispose();
     glassRateController.dispose();
     printRateController.dispose();
+    paintRateController.dispose();
     holeRateController.dispose();
     polishRateController.dispose();
+    rate4mmController.dispose();
+    rate5mmController.dispose();
+    rate6mmController.dispose();
+    rate8mmController.dispose();
+    rate12mmController.dispose();
     transportCostController.dispose();
     super.dispose();
   }
@@ -386,16 +424,32 @@ class _BillingSuiteState extends State<BillingSuite>
     if (settingsJson != null) {
       setState(() {
         settings = AppSettings.fromJson(json.decode(settingsJson));
+        currentSizeMultiple = settings.sizeMultiple;
         glassRateController.text = settings.glassRate.toString();
         printRateController.text = settings.printRate.toString();
+        paintRateController.text = settings.paintRate.toString();
         holeRateController.text = settings.holeRate.toString();
         polishRateController.text = settings.polishRate.toString();
+        rate4mmController.text = settings.thicknessRates['4mm'].toString();
+        rate5mmController.text = settings.thicknessRates['5mm'].toString();
+        rate6mmController.text = settings.thicknessRates['6mm'].toString();
+        rate8mmController.text = settings.thicknessRates['8mm'].toString();
+        rate12mmController.text = (settings.thicknessRates['12mm'] ?? 120.0).toString();
       });
     } else {
-      glassRateController.text = settings.glassRate.toString();
-      printRateController.text = settings.printRate.toString();
-      holeRateController.text = settings.holeRate.toString();
-      polishRateController.text = settings.polishRate.toString();
+      setState(() {
+        currentSizeMultiple = settings.sizeMultiple;
+        glassRateController.text = settings.glassRate.toString();
+        printRateController.text = settings.printRate.toString();
+        paintRateController.text = settings.paintRate.toString();
+        holeRateController.text = settings.holeRate.toString();
+        polishRateController.text = settings.polishRate.toString();
+        rate4mmController.text = settings.thicknessRates['4mm'].toString();
+        rate5mmController.text = settings.thicknessRates['5mm'].toString();
+        rate6mmController.text = settings.thicknessRates['6mm'].toString();
+        rate8mmController.text = settings.thicknessRates['8mm'].toString();
+        rate12mmController.text = (settings.thicknessRates['12mm'] ?? 120.0).toString();
+      });
     }
   }
 
@@ -403,6 +457,7 @@ class _BillingSuiteState extends State<BillingSuite>
   Future<void> saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('app_settings', json.encode(settings.toJson()));
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('✅ Rates updated successfully!')),
     );
@@ -414,17 +469,42 @@ class _BillingSuiteState extends State<BillingSuite>
     if (newRate != null && newRate > 0) {
       setState(() {
         settings.glassRate = newRate;
+        // Also update 5mm rate as default
+        settings.thicknessRates['5mm'] = newRate;
+        rate5mmController.text = newRate.toString();
       });
       saveSettings();
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Invalid glass rate. Please enter a positive number.'),
+            content: Text(
+              'Invalid glass rate. Please enter a positive number.',
+            ),
           ),
         );
       }
       glassRateController.text = settings.glassRate.toString();
+    }
+  }
+
+  // Update specific thickness rate
+  void updateThicknessRate(String thickness, TextEditingController controller) {
+    double? newRate = double.tryParse(controller.text);
+    if (newRate != null && newRate > 0) {
+      setState(() {
+        settings.thicknessRates[thickness] = newRate;
+        if (thickness == '5mm') {
+          settings.glassRate = newRate;
+          glassRateController.text = newRate.toString();
+        }
+      });
+      saveSettings();
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Invalid $thickness rate')));
+      controller.text = (settings.thicknessRates[thickness] ?? 0).toString();
     }
   }
 
@@ -443,6 +523,24 @@ class _BillingSuiteState extends State<BillingSuite>
         ),
       );
       printRateController.text = settings.printRate.toString();
+    }
+  }
+
+  // Update paint rate
+  void updatePaintRate() {
+    double? newRate = double.tryParse(paintRateController.text);
+    if (newRate != null && newRate > 0) {
+      setState(() {
+        settings.paintRate = newRate;
+      });
+      saveSettings();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid paint rate. Please enter a positive number.'),
+        ),
+      );
+      paintRateController.text = settings.paintRate.toString();
     }
   }
 
@@ -521,8 +619,9 @@ class _BillingSuiteState extends State<BillingSuite>
   // Save PDF list to shared preferences
   Future<void> savePdfList() async {
     final prefs = await SharedPreferences.getInstance();
-    List<Map<String, dynamic>> pdfsMap =
-        savedPdfs.map((p) => p.toJson()).toList();
+    List<Map<String, dynamic>> pdfsMap = savedPdfs
+        .map((p) => p.toJson())
+        .toList();
     await prefs.setString('saved_pdfs', json.encode(pdfsMap));
   }
 
@@ -563,9 +662,9 @@ class _BillingSuiteState extends State<BillingSuite>
     }
   }
 
-  // Round up to nearest 3
-  int roundUpTo3(double value) {
-    return (value / 3).ceil() * 3;
+  // Round up to nearest multiple (e.g. 3 or 6)
+  int roundUpToMultiple(double value, int multiple) {
+    return (value / multiple).ceil() * multiple;
   }
 
   // Compute costs for an item based on type
@@ -575,15 +674,16 @@ class _BillingSuiteState extends State<BillingSuite>
     String itemType,
     String thickness,
   ) {
-    int rw = roundUpTo3(w);
-    int rh = roundUpTo3(h);
+    int rw = roundUpToMultiple(w, currentSizeMultiple);
+    int rh = roundUpToMultiple(h, currentSizeMultiple);
     double glassAreaSqFt = (rw * rh) / 144;
     double printAreaSqFt = (w.ceil() * h.ceil()) / 144;
 
     double glassCost = 0;
     double printCost = 0;
 
-    double currentGlassRate = thicknessRates[thickness] ?? settings.glassRate;
+    double currentGlassRate =
+        settings.thicknessRates[thickness] ?? settings.glassRate;
 
     if (itemType == 'both') {
       glassCost = glassAreaSqFt * currentGlassRate;
@@ -591,6 +691,9 @@ class _BillingSuiteState extends State<BillingSuite>
     } else if (itemType == 'print_only') {
       glassCost = 0;
       printCost = printAreaSqFt * settings.printRate;
+    } else if (itemType == 'paint_only') {
+      glassCost = 0;
+      printCost = printAreaSqFt * settings.paintRate;
     }
 
     return {'glassCost': glassCost, 'printCost': printCost, 'rw': rw, 'rh': rh};
@@ -615,7 +718,7 @@ class _BillingSuiteState extends State<BillingSuite>
     double? w = double.tryParse(widthController.text);
     double? h = double.tryParse(heightController.text);
     int qty = int.tryParse(qtyController.text) ?? 1;
-    int holes = (selectedItemType == 'print_only')
+    int holes = (selectedItemType == 'print_only' || selectedItemType == 'paint_only')
         ? 0
         : (int.tryParse(holesController.text) ?? 0);
     double designCost = double.tryParse(designCostController.text) ?? 0.0;
@@ -811,6 +914,7 @@ class _BillingSuiteState extends State<BillingSuite>
     }
 
     String customerName = custNameController.text.trim();
+    String custGstNumber = custGstController.text.trim();
     if (customerName.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -962,17 +1066,34 @@ class _BillingSuiteState extends State<BillingSuite>
             ),
             pw.Divider(height: 20, thickness: 2),
             pw.Container(
+              width: double.infinity,
               padding: const pw.EdgeInsets.all(12),
               decoration: pw.BoxDecoration(
                 color: PdfColors.grey100,
                 borderRadius: pw.BorderRadius.circular(8),
               ),
-              child: pw.Text(
-                'Bill To: $customerName',
-                style: pw.TextStyle(
-                  fontSize: 12,
-                  fontWeight: pw.FontWeight.bold,
-                ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'Bill To: $customerName',
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  if (custGstNumber.isNotEmpty) ...[
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'GSTIN: $custGstNumber',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.grey800,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             pw.SizedBox(height: 20),
@@ -987,9 +1108,9 @@ class _BillingSuiteState extends State<BillingSuite>
               data: [
                 ...currentBillItems.map(
                   (item) => [
-                    '${item.desc}\n${item.itemType == 'both' ? 'Glass: ${item.thickness} | ${item.rw}"×${item.rh}"' : 'Print Only'}${item.holes > 0 ? '\nHoles: ${item.holes}' : ''}${item.hasPolish ? '\nPolish Applied' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
+                    '${item.desc}\n${item.itemType == 'both' ? 'Glass: ${item.thickness} | ${item.rw}"×${item.rh}"' : (item.itemType == 'print_only' ? 'Print Only' : 'Paint Only')}${item.holes > 0 ? '\nHoles: ${item.holes}' : ''}${item.hasPolish ? '\nPolish Applied' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
                     '${item.w}${item.dimUnit == 'mm' ? 'mm' : '"'} × ${item.h}${item.dimUnit == 'mm' ? 'mm' : '"'}',
-                    item.itemType == 'both' ? 'Glass + Print' : 'Print Only',
+                    item.itemType == 'both' ? 'Glass + Print' : (item.itemType == 'print_only' ? 'Print Only' : 'Paint Only'),
                     item.qty.toString(),
                     '₹ ${item.total.toStringAsFixed(2)}',
                   ],
@@ -1114,12 +1235,10 @@ class _BillingSuiteState extends State<BillingSuite>
 
       // Show loading and print
       final pdfBytes = await pdf.save();
-      final fileName = 'SGD_Invoice_${customerName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      
-      await Printing.sharePdf(
-        bytes: pdfBytes,
-        filename: fileName,
-      );
+      final fileName =
+          'SGD_Invoice_${customerName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+
+      await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
 
       // Save to local storage
       await savePdfToFile(pdfBytes, fileName, customerName, 'Invoice');
@@ -1201,6 +1320,7 @@ class _BillingSuiteState extends State<BillingSuite>
     });
 
     await saveCustomers();
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -1251,6 +1371,7 @@ class _BillingSuiteState extends State<BillingSuite>
       // Generate PDF for this payment
       await generatePaymentReceiptPDF(selectedPaymentCustomer!, payment);
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1485,12 +1606,10 @@ class _BillingSuiteState extends State<BillingSuite>
       );
 
       final pdfBytes = await pdf.save();
-      final fileName = 'SGD_Receipt_${customer.name.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final fileName =
+          'SGD_Receipt_${customer.name.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
-      await Printing.sharePdf(
-        bytes: pdfBytes,
-        filename: fileName,
-      );
+      await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
 
       // Save to local storage
       await savePdfToFile(pdfBytes, fileName, customer.name, 'Receipt');
@@ -1579,6 +1698,7 @@ class _BillingSuiteState extends State<BillingSuite>
         selectedPaymentCustomer = null;
       });
       await saveCustomers();
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('All customers removed')));
@@ -1648,7 +1768,7 @@ class _BillingSuiteState extends State<BillingSuite>
           TextCellValue(date),
           TextCellValue(customerName),
           TextCellValue(item.desc),
-          TextCellValue(item.itemType == 'both' ? 'Glass+Print' : 'Print Only'),
+          TextCellValue(item.itemType == 'both' ? 'Glass+Print' : (item.itemType == 'print_only' ? 'Print Only' : 'Paint Only')),
           TextCellValue(dimStr),
           IntCellValue(item.qty),
           IntCellValue(item.holes),
@@ -1676,9 +1796,12 @@ class _BillingSuiteState extends State<BillingSuite>
 
       if (file.existsSync()) {
         if (mounted) {
-          await Share.shareXFiles([
-            XFile(path),
-          ], text: 'Sri Gayathri Digital Bills Excel Report');
+          await SharePlus.instance.share(
+            ShareParams(
+              files: [XFile(path)],
+              text: 'Sri Gayathri Digital Bills Excel Report',
+            ),
+          );
         }
       } else {
         if (mounted) {
@@ -1709,7 +1832,8 @@ class _BillingSuiteState extends State<BillingSuite>
 
       if (file.existsSync()) {
         final result = await OpenFilex.open(path);
-        if (result.type != ResultType.done && mounted) {
+        if (!mounted) return;
+        if (result.type != ResultType.done) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Could not open file: ${result.message}')),
           );
@@ -1717,17 +1841,15 @@ class _BillingSuiteState extends State<BillingSuite>
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No generated bills found yet.'),
-            ),
+            const SnackBar(content: Text('No generated bills found yet.')),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error previewing file: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error previewing file: $e')));
       }
     }
   }
@@ -1749,6 +1871,7 @@ class _BillingSuiteState extends State<BillingSuite>
               setState(() {
                 currentBillItems.clear();
                 custNameController.clear();
+                custGstController.clear();
                 itemDescController.clear();
                 widthController.clear();
                 heightController.clear();
@@ -1805,7 +1928,7 @@ class _BillingSuiteState extends State<BillingSuite>
                         width: 42,
                         height: 42,
                         fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Icon(
+                        errorBuilder: (_, _, _) => const Icon(
                           Icons.image,
                           color: Color(0xFFd4af37),
                           size: 36,
@@ -1954,6 +2077,18 @@ class _BillingSuiteState extends State<BillingSuite>
                     ),
                   ),
                   const SizedBox(height: 12),
+                  TextField(
+                    controller: custGstController,
+                    decoration: const InputDecoration(
+                      labelText: 'Customer GST Number (Optional)',
+                      prefixIcon: Icon(Icons.receipt_long),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                  ),
+                  const SizedBox(height: 12),
                   // Read-only Invoice Number Display
                   TextField(
                     controller: TextEditingController(
@@ -2013,54 +2148,61 @@ class _BillingSuiteState extends State<BillingSuite>
               child: Column(
                 children: [
                   // Item Type Selection
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1E1E1E)
-                          : Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: RadioListTile<String>(
-                            title: const Text(
-                              'Glass + Print',
-                              style: TextStyle(fontSize: 14),
+                  RadioGroup<String>(
+                    groupValue: selectedItemType,
+                    onChanged: (value) {
+                      setState(() {
+                        selectedItemType = value!;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF1E1E1E)
+                            : Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<String>(
+                              title: Text(
+                                'Glass + Print',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              value: 'both',
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
                             ),
-                            value: 'both',
-                            groupValue: selectedItemType,
-                            onChanged: (value) {
-                              setState(() {
-                                selectedItemType = value!;
-                              });
-                            },
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
                           ),
-                        ),
-                        Expanded(
-                          child: RadioListTile<String>(
-                            title: const Text(
-                              'Print Only',
-                              style: TextStyle(fontSize: 14),
+                          Expanded(
+                            child: RadioListTile<String>(
+                              title: Text(
+                                'Print Only',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              value: 'print_only',
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
                             ),
-                            value: 'print_only',
-                            groupValue: selectedItemType,
-                            onChanged: (value) {
-                              setState(() {
-                                selectedItemType = value!;
-                              });
-                            },
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
                           ),
-                        ),
-                      ],
+                          Expanded(
+                            child: RadioListTile<String>(
+                              title: Text(
+                                'Paint Only',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              value: 'paint_only',
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -2093,12 +2235,12 @@ class _BillingSuiteState extends State<BillingSuite>
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
-                        children: thicknessRates.keys.map((thickness) {
+                        children: settings.thicknessRates.keys.map((thickness) {
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: FilterChip(
                               label: Text(
-                                '$thickness (₹${thicknessRates[thickness]?.toInt()})',
+                                '$thickness (₹${settings.thicknessRates[thickness]?.toInt()})',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: selectedThickness == thickness
@@ -2127,33 +2269,46 @@ class _BillingSuiteState extends State<BillingSuite>
                     const SizedBox(height: 12),
                   ],
 
-                  Row(
-                    children: [
-                      const Text(
-                        'Dimension Unit:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Radio<String>(
-                        value: 'in',
-                        groupValue: inputUnit,
-                        onChanged: (val) {
-                          setState(() {
-                            inputUnit = val!;
-                          });
-                        },
-                      ),
-                      const Text('Inches'),
-                      Radio<String>(
-                        value: 'mm',
-                        groupValue: inputUnit,
-                        onChanged: (val) {
-                          setState(() {
-                            inputUnit = val!;
-                          });
-                        },
-                      ),
-                      const Text('mm'),
-                    ],
+                  RadioGroup<String>(
+                    groupValue: inputUnit,
+                    onChanged: (val) {
+                      setState(() {
+                        inputUnit = val!;
+                      });
+                    },
+                    child: Row(
+                      children: [
+                        const Text(
+                          'Dimension Unit:',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const Radio<String>(value: 'in'),
+                        const Text('Inches'),
+                        const Radio<String>(value: 'mm'),
+                        const Text('mm'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  RadioGroup<int>(
+                    groupValue: currentSizeMultiple,
+                    onChanged: (val) {
+                      setState(() {
+                        currentSizeMultiple = val!;
+                      });
+                    },
+                    child: Row(
+                      children: [
+                        const Text(
+                          'Size Multiple:',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const Radio<int>(value: 3),
+                        const Text('3 Multiple'),
+                        const Radio<int>(value: 6),
+                        const Text('6 Multiple'),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -2268,6 +2423,7 @@ class _BillingSuiteState extends State<BillingSuite>
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -2327,9 +2483,14 @@ class _BillingSuiteState extends State<BillingSuite>
                                 'Glass: ₹${item.glassCost.toStringAsFixed(2)} | Print: ₹${item.printCost.toStringAsFixed(2)}${item.holes > 0 ? '\nHoles (${item.holes}): ₹${item.holeCost.toStringAsFixed(2)}' : ''}${item.hasPolish ? '\nPolish: ₹${item.polishCost.toStringAsFixed(2)}' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
                                 style: const TextStyle(fontSize: 12),
                               )
-                            else
+                            else if (item.itemType == 'print_only')
                               Text(
                                 'Print Only: ₹${item.printCost.toStringAsFixed(2)}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
+                                style: const TextStyle(fontSize: 12),
+                              )
+                            else if (item.itemType == 'paint_only')
+                              Text(
+                                'Paint Only: ₹${item.printCost.toStringAsFixed(2)}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
                                 style: const TextStyle(fontSize: 12),
                               ),
                           ],
@@ -2347,13 +2508,19 @@ class _BillingSuiteState extends State<BillingSuite>
                                     ? (isDark
                                           ? Colors.blue.shade900
                                           : Colors.blue.shade100)
-                                    : (isDark
-                                          ? Colors.green.shade900
-                                          : Colors.green.shade100),
+                                    : (item.itemType == 'print_only'
+                                          ? (isDark
+                                                ? Colors.green.shade900
+                                                : Colors.green.shade100)
+                                          : (isDark
+                                                ? Colors.purple.shade900
+                                                : Colors.purple.shade100)),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                item.itemType == 'both' ? 'G+P' : 'Print',
+                                item.itemType == 'both'
+                                    ? 'G+P'
+                                    : (item.itemType == 'print_only' ? 'Print' : 'Paint'),
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
@@ -2361,9 +2528,13 @@ class _BillingSuiteState extends State<BillingSuite>
                                       ? (isDark
                                             ? Colors.blue.shade200
                                             : Colors.blue.shade800)
-                                      : (isDark
-                                            ? Colors.green.shade200
-                                            : Colors.green.shade800),
+                                      : (item.itemType == 'print_only'
+                                            ? (isDark
+                                                  ? Colors.green.shade200
+                                                  : Colors.green.shade800)
+                                            : (isDark
+                                                  ? Colors.purple.shade200
+                                                  : Colors.purple.shade800)),
                                 ),
                               ),
                             ),
@@ -2537,6 +2708,7 @@ class _BillingSuiteState extends State<BillingSuite>
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     backgroundColor: Colors.green.shade700,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -2572,8 +2744,10 @@ class _BillingSuiteState extends State<BillingSuite>
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.spaceBetween,
                     children: [
                       Text(
                         'Glass: ₹${settings.glassRate.toStringAsFixed(2)}/sqft',
@@ -2581,6 +2755,10 @@ class _BillingSuiteState extends State<BillingSuite>
                       ),
                       Text(
                         'Print: ₹${settings.printRate.toStringAsFixed(2)}/sqft',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      Text(
+                        'Paint: ₹${settings.paintRate.toStringAsFixed(2)}/sqft',
                         style: const TextStyle(fontSize: 11),
                       ),
                       const Text(
@@ -2613,6 +2791,30 @@ class _BillingSuiteState extends State<BillingSuite>
                           ),
                         ],
                       ),
+                    )
+                  else if (selectedItemType == 'paint_only')
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.purple.shade900
+                            : Colors.purple.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.info, size: 12),
+                          SizedBox(width: 4),
+                          Text(
+                            'Paint Only Mode - No glass cost applied',
+                            style: TextStyle(fontSize: 10),
+                          ),
+                        ],
+                      ),
                     ),
                 ],
               ),
@@ -2624,6 +2826,10 @@ class _BillingSuiteState extends State<BillingSuite>
   }
 
   Widget _buildCustomersTab() {
+    final filteredCustomers = customers
+        .where((c) => c.name.toLowerCase().contains(customerSearchQuery))
+        .toList();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -2677,6 +2883,7 @@ class _BillingSuiteState extends State<BillingSuite>
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             backgroundColor: Colors.green.shade700,
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -2723,6 +2930,35 @@ class _BillingSuiteState extends State<BillingSuite>
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
+                  if (customers.isNotEmpty) ...[
+                    TextField(
+                      controller: customerSearchController,
+                      decoration: InputDecoration(
+                        labelText: 'Search Customer',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: customerSearchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  setState(() {
+                                    customerSearchController.clear();
+                                    customerSearchQuery = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        border: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(12)),
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          customerSearchQuery = value.trim().toLowerCase();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   if (customers.isEmpty)
                     const Center(
                       child: Padding(
@@ -2733,14 +2969,24 @@ class _BillingSuiteState extends State<BillingSuite>
                         ),
                       ),
                     )
+                  else if (filteredCustomers.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(40),
+                        child: Text(
+                          'No matching customers found',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    )
                   else
                     ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      itemCount: customers.length,
+                      itemCount: filteredCustomers.length,
                       separatorBuilder: (context, index) => const Divider(),
                       itemBuilder: (context, index) {
-                        var customer = customers[index];
+                        var customer = filteredCustomers[index];
                         return ExpansionTile(
                           leading: const CircleAvatar(
                             child: Icon(Icons.person),
@@ -2858,7 +3104,7 @@ class _BillingSuiteState extends State<BillingSuite>
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Customer>(
-                    value: selectedPaymentCustomer,
+                    initialValue: selectedPaymentCustomer,
                     decoration: const InputDecoration(
                       labelText: 'Select Customer',
                       border: OutlineInputBorder(
@@ -2902,6 +3148,7 @@ class _BillingSuiteState extends State<BillingSuite>
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             backgroundColor: Colors.green.shade700,
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -3000,6 +3247,69 @@ class _BillingSuiteState extends State<BillingSuite>
           ),
           const SizedBox(height: 16),
 
+          // Size Rounding Multiple Configuration
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Size Rounding Multiple',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Select default rounding multiple for glass size calculations (in inches)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const Divider(height: 24),
+                  RadioGroup<int>(
+                    groupValue: settings.sizeMultiple,
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() {
+                          settings.sizeMultiple = val;
+                          currentSizeMultiple = val; // Sync dynamic billing choice
+                        });
+                        saveSettings();
+                      }
+                    },
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: RadioListTile<int>(
+                            title: const Text(
+                              '3 Multiple (3")',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                            ),
+                            value: 3,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                        Expanded(
+                          child: RadioListTile<int>(
+                            title: const Text(
+                              '6 Multiple (6")',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                            ),
+                            value: 6,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Rate Configuration
           Card(
             elevation: 4,
@@ -3022,9 +3332,9 @@ class _BillingSuiteState extends State<BillingSuite>
                   ),
                   const Divider(height: 24),
 
-                  // Glass Rate Setting
+                  // Glass Thickness Rates Section
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: isDark
                           ? const Color(0xFF1E1E1E)
@@ -3036,65 +3346,56 @@ class _BillingSuiteState extends State<BillingSuite>
                       children: [
                         const Row(
                           children: [
-                            Icon(
-                              Icons.construction,
-                              size: 20,
-                              color: Colors.blue,
-                            ),
+                            Icon(Icons.layers, size: 20, color: Colors.blue),
                             SizedBox(width: 8),
                             Text(
-                              'Glass Rate',
+                              'Glass Thickness Rates',
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Rate per square foot for glass cutting and framing',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        const SizedBox(height: 16),
+
+                        // 4mm Rate
+                        _buildThicknessRateRow(
+                          '4mm',
+                          rate4mmController,
+                          isDark,
                         ),
                         const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: glassRateController,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  prefixText: '₹ ',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.all(
-                                      Radius.circular(12),
-                                    ),
-                                  ),
-                                  hintText: 'Enter glass rate per sqft',
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            ElevatedButton(
-                              onPressed: updateGlassRate,
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 14,
-                                ),
-                                backgroundColor: Colors.blue.shade700,
-                              ),
-                              child: const Text('Update'),
-                            ),
-                          ],
+
+                        // 5mm Rate
+                        _buildThicknessRateRow(
+                          '5mm',
+                          rate5mmController,
+                          isDark,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Current rate: ₹${settings.glassRate.toStringAsFixed(2)}/sqft',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        const SizedBox(height: 12),
+
+                        // 6mm Rate
+                        _buildThicknessRateRow(
+                          '6mm',
+                          rate6mmController,
+                          isDark,
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 8mm Rate
+                        _buildThicknessRateRow(
+                          '8mm',
+                          rate8mmController,
+                          isDark,
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 12mm Rate
+                        _buildThicknessRateRow(
+                          '12mm',
+                          rate12mmController,
+                          isDark,
                         ),
                       ],
                     ),
@@ -3159,6 +3460,7 @@ class _BillingSuiteState extends State<BillingSuite>
                                   vertical: 14,
                                 ),
                                 backgroundColor: Colors.green.shade700,
+                                foregroundColor: Colors.white,
                               ),
                               child: const Text('Update'),
                             ),
@@ -3167,6 +3469,87 @@ class _BillingSuiteState extends State<BillingSuite>
                         const SizedBox(height: 8),
                         Text(
                           'Current rate: ₹${settings.printRate.toStringAsFixed(2)}/sqft',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Paint Rate Setting
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1E1E1E)
+                          : Colors.purple.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.format_paint,
+                              size: 20,
+                              color: Colors.purple.shade700,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Paint Rate',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Rate per square foot for glass painting services',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: paintRateController,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  prefixText: '₹ ',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.all(
+                                      Radius.circular(12),
+                                    ),
+                                  ),
+                                  hintText: 'Enter paint rate per sqft',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton(
+                              onPressed: updatePaintRate,
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 14,
+                                ),
+                                backgroundColor: Colors.purple.shade700,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Update'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Current rate: ₹${settings.paintRate.toStringAsFixed(2)}/sqft',
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -3239,6 +3622,7 @@ class _BillingSuiteState extends State<BillingSuite>
                                   vertical: 14,
                                 ),
                                 backgroundColor: Colors.orange.shade700,
+                                foregroundColor: Colors.white,
                               ),
                               child: const Text('Update'),
                             ),
@@ -3315,6 +3699,7 @@ class _BillingSuiteState extends State<BillingSuite>
                                   vertical: 14,
                                 ),
                                 backgroundColor: Colors.purple.shade700,
+                                foregroundColor: Colors.white,
                               ),
                               child: const Text('Update'),
                             ),
@@ -3363,12 +3748,12 @@ class _BillingSuiteState extends State<BillingSuite>
                           ],
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          '• Glass dimensions are rounded up to the nearest 3 inches\n'
+                        Text(
+                          '• Glass dimensions are rounded up to the nearest ${settings.sizeMultiple} inches\n'
                           '• Print cost is calculated based on actual dimensions\n'
                           '• Updated rates will apply to all new items added to bills\n'
                           '• Existing items in current bill will not be affected',
-                          style: TextStyle(fontSize: 12),
+                          style: const TextStyle(fontSize: 12),
                         ),
                       ],
                     ),
@@ -3386,7 +3771,7 @@ class _BillingSuiteState extends State<BillingSuite>
                           builder: (context) => AlertDialog(
                             title: const Text('Reset to Default Rates?'),
                             content: const Text(
-                              'This will reset glass rate to ₹65/sqft and print rate to ₹180/sqft. Continue?',
+                              'This will reset glass rate to ₹65/sqft, print rate to ₹180/sqft, and paint rate to ₹100/sqft. Continue?',
                             ),
                             actions: [
                               TextButton(
@@ -3398,8 +3783,24 @@ class _BillingSuiteState extends State<BillingSuite>
                                   setState(() {
                                     settings.glassRate = 65.0;
                                     settings.printRate = 180.0;
+                                    settings.paintRate = 100.0;
+                                    settings.sizeMultiple = 3;
+                                    currentSizeMultiple = 3;
+                                    settings.thicknessRates = {
+                                      '4mm': 55.0,
+                                      '5mm': 65.0,
+                                      '6mm': 75.0,
+                                      '8mm': 80.0,
+                                      '12mm': 120.0,
+                                    };
                                     glassRateController.text = '65';
                                     printRateController.text = '180';
+                                    paintRateController.text = '100';
+                                    rate4mmController.text = '55';
+                                    rate5mmController.text = '65';
+                                    rate6mmController.text = '75';
+                                    rate8mmController.text = '80';
+                                    rate12mmController.text = '120';
                                   });
                                   saveSettings();
                                   Navigator.pop(context);
@@ -3440,24 +3841,35 @@ class _BillingSuiteState extends State<BillingSuite>
                     onTap: previewExcelFile,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1c2a3d) : Colors.blue.shade50,
+                        color: isDark
+                            ? const Color(0xFF1c2a3d)
+                            : Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isDark ? Colors.blue.shade700 : Colors.blue.shade300,
+                          color: isDark
+                              ? Colors.blue.shade700
+                              : Colors.blue.shade300,
                         ),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.remove_red_eye, color: isDark ? Colors.blue.shade200 : Colors.blue.shade800),
+                          Icon(
+                            Icons.remove_red_eye,
+                            color: isDark
+                                ? Colors.blue.shade200
+                                : Colors.blue.shade800,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Preview',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.blue.shade200 : Colors.blue.shade800,
+                              color: isDark
+                                  ? Colors.blue.shade200
+                                  : Colors.blue.shade800,
                             ),
                           ),
                         ],
@@ -3479,7 +3891,10 @@ class _BillingSuiteState extends State<BillingSuite>
                     child: Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.green.shade500, Colors.green.shade700],
+                          colors: [
+                            Colors.green.shade500,
+                            Colors.green.shade700,
+                          ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -3589,18 +4004,28 @@ class _BillingSuiteState extends State<BillingSuite>
               children: [
                 IconButton(
                   icon: const Icon(Icons.share, color: Colors.blue, size: 20),
-                  onPressed: () => Share.shareXFiles([XFile(pdf.filePath)]),
+                  onPressed: () async {
+                    await SharePlus.instance.share(
+                      ShareParams(files: [XFile(pdf.filePath)]),
+                    );
+                  },
                   tooltip: 'Share',
                 ),
                 IconButton(
-                  icon:
-                      const Icon(Icons.open_in_new, color: Colors.green, size: 20),
+                  icon: const Icon(
+                    Icons.open_in_new,
+                    color: Colors.green,
+                    size: 20,
+                  ),
                   onPressed: () async {
                     final result = await OpenFilex.open(pdf.filePath);
-                    if (result.type != ResultType.done && mounted) {
+                    if (!context.mounted) return;
+                    if (result.type != ResultType.done) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Could not open file: ${result.message}'),
+                          content: Text(
+                            'Could not open file: ${result.message}',
+                          ),
                         ),
                       );
                     }
@@ -3608,8 +4033,11 @@ class _BillingSuiteState extends State<BillingSuite>
                   tooltip: 'Open',
                 ),
                 IconButton(
-                  icon:
-                      const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.red,
+                    size: 20,
+                  ),
                   onPressed: () {
                     showDialog(
                       context: context,
@@ -3657,15 +4085,86 @@ class _BillingSuiteState extends State<BillingSuite>
             ),
             onTap: () async {
               final result = await OpenFilex.open(pdf.filePath);
-              if (result.type != ResultType.done && mounted) {
+              if (!context.mounted) return;
+              if (result.type != ResultType.done) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Could not open file: ${result.message}')),
+                  SnackBar(
+                    content: Text('Could not open file: ${result.message}'),
+                  ),
                 );
               }
             },
           ),
         );
       },
+    );
+  }
+
+  Widget _buildThicknessRateRow(
+    String thickness,
+    TextEditingController controller,
+    bool isDark,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: Text(
+                '$thickness Glass Rate',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 3,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(fontSize: 14),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        prefixText: '₹ ',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(8)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () => updateThicknessRate(thickness, controller),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Update', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Current: ₹${(settings.thicknessRates[thickness] ?? 0).toStringAsFixed(2)}/sqft',
+          style: TextStyle(
+            fontSize: 11,
+            color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+          ),
+        ),
+      ],
     );
   }
 }

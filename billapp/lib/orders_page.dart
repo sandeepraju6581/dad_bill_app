@@ -147,6 +147,7 @@ class _OrdersPageState extends State<OrdersPage>
   late TabController _filterTab;
   final _filters = ['All', 'Working', 'Completed', 'Delivery'];
   bool _loading = true;
+  bool _showNamesOnly = false;
 
   @override
   void initState() {
@@ -300,6 +301,49 @@ class _OrdersPageState extends State<OrdersPage>
                   }).toList(),
                 ),
               ),
+              // Compact Toggle Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Orders (${filtered.length})',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          'Name Only Show',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 24,
+                          width: 40,
+                          child: Switch(
+                            value: _showNamesOnly,
+                            onChanged: (val) {
+                              setState(() {
+                                _showNamesOnly = val;
+                              });
+                            },
+                            activeThumbColor: isDark ? Colors.blue.shade300 : const Color(0xFF1d6f96),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
               // Order List
               Expanded(
                 child: _loading
@@ -311,6 +355,7 @@ class _OrdersPageState extends State<OrdersPage>
                             itemCount: filtered.length,
                             itemBuilder: (_, i) => _OrderCard(
                               order: filtered[i],
+                              showNamesOnly: _showNamesOnly,
                               onEdit: () => _openOrderForm(editing: filtered[i]),
                               onDelete: () => _deleteOrder(filtered[i]),
                               onOpenGallery: (idx) =>
@@ -402,6 +447,7 @@ class _SummaryChip extends StatelessWidget {
 
 class _OrderCard extends StatelessWidget {
   final Order order;
+  final bool showNamesOnly;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final ValueChanged<int> onOpenGallery;
@@ -409,6 +455,7 @@ class _OrderCard extends StatelessWidget {
 
   const _OrderCard({
     required this.order,
+    this.showNamesOnly = false,
     required this.onEdit,
     required this.onDelete,
     required this.onOpenGallery,
@@ -420,6 +467,93 @@ class _OrderCard extends StatelessWidget {
     final cfg = _statusConfig[order.status]!;
     final hasImages = order.images.isNotEmpty;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (showNamesOnly) {
+      return Card(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        elevation: isDark ? 1 : 2,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  order.customerName,
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              PopupMenuButton<String>(
+                initialValue: order.status,
+                tooltip: 'Change Status',
+                onSelected: onStatusChange,
+                itemBuilder: (context) => _statusConfig.entries.map((e) {
+                  return PopupMenuItem(
+                    value: e.key,
+                    child: Row(
+                      children: [
+                        Icon(e.value.icon, color: e.value.color, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          e.value.label,
+                          style: TextStyle(
+                            color: e.value.color,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? cfg.color.withValues(alpha: 0.2) : cfg.bgColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(cfg.icon, size: 12, color: isDark ? cfg.color.withValues(alpha: 0.8) : cfg.color),
+                      const SizedBox(width: 3),
+                      Text(cfg.label,
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? cfg.color.withValues(alpha: 0.8) : cfg.color,
+                              fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.edit_rounded, size: 18),
+                color: Colors.blue,
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(6),
+                tooltip: 'Edit',
+                onPressed: onEdit,
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                color: Colors.red,
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(6),
+                tooltip: 'Delete',
+                onPressed: onDelete,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
