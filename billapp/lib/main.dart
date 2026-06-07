@@ -205,6 +205,9 @@ class BillItem {
   String itemType; // 'both' or 'print_only'
   String dimUnit; // 'in' or 'mm'
   String thickness; // '4mm', '5mm', etc.
+  double glassRate;
+  double printRate;
+  double paintRate;
 
   BillItem({
     required this.desc,
@@ -224,6 +227,9 @@ class BillItem {
     required this.printCost,
     required this.total,
     required this.itemType,
+    this.glassRate = 0.0,
+    this.printRate = 0.0,
+    this.paintRate = 0.0,
   });
 }
 
@@ -770,6 +776,9 @@ class _BillingSuiteState extends State<BillingSuite>
           total: total,
           itemType: selectedItemType,
           thickness: selectedThickness,
+          glassRate: selectedItemType == 'both' ? (settings.thicknessRates[selectedThickness] ?? settings.glassRate) : 0.0,
+          printRate: (selectedItemType == 'both' || selectedItemType == 'print_only') ? settings.printRate : 0.0,
+          paintRate: selectedItemType == 'paint_only' ? settings.paintRate : 0.0,
         ),
       );
 
@@ -1108,7 +1117,7 @@ class _BillingSuiteState extends State<BillingSuite>
               data: [
                 ...currentBillItems.map(
                   (item) => [
-                    '${item.desc}\n${item.itemType == 'both' ? 'Glass: ${item.thickness} | ${item.rw}"×${item.rh}"' : (item.itemType == 'print_only' ? 'Print Only' : 'Paint Only')}${item.holes > 0 ? '\nHoles: ${item.holes}' : ''}${item.hasPolish ? '\nPolish Applied' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
+                    '${item.desc}\n${item.itemType == 'both' ? 'Glass: ${item.thickness} (Rate: ₹${item.glassRate.toStringAsFixed(0)}) | ${item.rw}"×${item.rh}"\nPrint Rate: ₹${item.printRate.toStringAsFixed(0)}' : (item.itemType == 'print_only' ? 'Print Only | Rate: ₹${item.printRate.toStringAsFixed(0)}' : 'Paint Only | Rate: ₹${item.paintRate.toStringAsFixed(0)}')}${item.holes > 0 ? '\nHoles: ${item.holes}' : ''}${item.hasPolish ? '\nPolish Applied' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
                     '${item.w}${item.dimUnit == 'mm' ? 'mm' : '"'} × ${item.h}${item.dimUnit == 'mm' ? 'mm' : '"'}',
                     item.itemType == 'both' ? 'Glass + Print' : (item.itemType == 'print_only' ? 'Print Only' : 'Paint Only'),
                     item.qty.toString(),
@@ -2480,17 +2489,17 @@ class _BillingSuiteState extends State<BillingSuite>
                             ),
                             if (item.itemType == 'both')
                               Text(
-                                'Glass: ₹${item.glassCost.toStringAsFixed(2)} | Print: ₹${item.printCost.toStringAsFixed(2)}${item.holes > 0 ? '\nHoles (${item.holes}): ₹${item.holeCost.toStringAsFixed(2)}' : ''}${item.hasPolish ? '\nPolish: ₹${item.polishCost.toStringAsFixed(2)}' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
+                                'Glass (Rate: ₹${item.glassRate.toStringAsFixed(0)}): ₹${item.glassCost.toStringAsFixed(2)} | Print (Rate: ₹${item.printRate.toStringAsFixed(0)}): ₹${item.printCost.toStringAsFixed(2)}${item.holes > 0 ? '\nHoles (${item.holes}): ₹${item.holeCost.toStringAsFixed(2)}' : ''}${item.hasPolish ? '\nPolish: ₹${item.polishCost.toStringAsFixed(2)}' : ''}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
                                 style: const TextStyle(fontSize: 12),
                               )
                             else if (item.itemType == 'print_only')
                               Text(
-                                'Print Only: ₹${item.printCost.toStringAsFixed(2)}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
+                                'Print Only (Rate: ₹${item.printRate.toStringAsFixed(0)}): ₹${item.printCost.toStringAsFixed(2)}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
                                 style: const TextStyle(fontSize: 12),
                               )
                             else if (item.itemType == 'paint_only')
                               Text(
-                                'Paint Only: ₹${item.printCost.toStringAsFixed(2)}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
+                                'Paint Only (Rate: ₹${item.paintRate.toStringAsFixed(0)}): ₹${item.printCost.toStringAsFixed(2)}${item.designCost > 0 ? '\nDesign Cost: ₹${item.designCost.toStringAsFixed(2)}' : ''}',
                                 style: const TextStyle(fontSize: 12),
                               ),
                           ],
