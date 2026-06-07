@@ -1236,7 +1236,7 @@ class _BillingSuiteState extends State<BillingSuite>
       // Show loading and print
       final pdfBytes = await pdf.save();
       final fileName =
-          'SGD_Invoice_${customerName.replaceAll(' ', '_')}_Rs_${totalSum.toStringAsFixed(0)}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+          'SGD_Invoice_${customerName.replaceAll(' ', '_')}_${totalSum.toInt()}_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
       await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
 
@@ -1607,7 +1607,7 @@ class _BillingSuiteState extends State<BillingSuite>
 
       final pdfBytes = await pdf.save();
       final fileName =
-          'SGD_Receipt_${customer.name.replaceAll(' ', '_')}_Rs_${paymentAmount.toStringAsFixed(0)}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+          'SGD_Receipt_${customer.name.replaceAll(' ', '_')}_${paymentAmount.toInt()}_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
       await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
 
