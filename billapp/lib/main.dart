@@ -1050,6 +1050,15 @@ class _BillingSuiteState extends State<BillingSuite>
                               color: PdfColors.grey700,
                             ),
                           ),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            'GSTIN: 36AYWPA4493K1ZR',
+                            style: pw.TextStyle(
+                              fontSize: 10,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.grey900,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -1500,6 +1509,15 @@ class _BillingSuiteState extends State<BillingSuite>
                             style: pw.TextStyle(
                               fontSize: 10,
                               color: PdfColors.grey700,
+                            ),
+                          ),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            'GSTIN: 36AYWPA4493K1ZR',
+                            style: pw.TextStyle(
+                              fontSize: 10,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.grey900,
                             ),
                           ),
                         ],
