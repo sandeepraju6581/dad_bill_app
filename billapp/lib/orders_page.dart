@@ -479,12 +479,42 @@ class _OrderCard extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  order.customerName,
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: InkWell(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => _OrderDetailsPopupDialog(order: order),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              order.customerName,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 15,
+                            color: isDark ? Colors.blue.shade300 : const Color(0xFF1d6f96),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -574,12 +604,42 @@ class _OrderCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        order.customerName,
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.bold),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: InkWell(
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => _OrderDetailsPopupDialog(order: order),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    order.customerName,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.info_outline_rounded,
+                                  size: 15,
+                                  color: isDark ? Colors.blue.shade300 : const Color(0xFF1d6f96),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 3),
                       Row(
@@ -861,6 +921,369 @@ class _OrderCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Order Details Popup Dialog ─────────────────────────────────────────
+
+class _OrderDetailsPopupDialog extends StatefulWidget {
+  final Order order;
+
+  const _OrderDetailsPopupDialog({required this.order});
+
+  @override
+  State<_OrderDetailsPopupDialog> createState() => _OrderDetailsPopupDialogState();
+}
+
+class _OrderDetailsPopupDialogState extends State<_OrderDetailsPopupDialog> {
+  int _selectedIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final order = widget.order;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cfg = _statusConfig[order.status]!;
+    final hasImages = order.images.isNotEmpty;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 450),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            order.customerName,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (order.createdAt.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Created: ${order.createdAt}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      style: IconButton.styleFrom(
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Status and size row
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Size Badge
+                    Row(
+                      children: [
+                        const Icon(Icons.straighten_rounded, size: 18, color: Colors.blueAccent),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Size: ${order.width}" × ${order.height}"',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Status Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isDark ? cfg.color.withValues(alpha: 0.2) : cfg.bgColor,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isDark ? cfg.color.withValues(alpha: 0.4) : cfg.color.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(cfg.icon, size: 14, color: isDark ? cfg.color.withValues(alpha: 0.8) : cfg.color),
+                          const SizedBox(width: 5),
+                          Text(
+                            cfg.label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? cfg.color.withValues(alpha: 0.8) : cfg.color,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Description if not empty
+              if (order.description.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF3C3C3C) : Colors.grey.shade200,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Description / Notes',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.blue.shade300 : const Color(0xFF1d6f96),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          order.description,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Image Section
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (hasImages) ...[
+                      // Main image preview viewport
+                      GestureDetector(
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) => _ImageGalleryDialog(
+                              images: order.images,
+                              initialIndex: _selectedIndex,
+                            ),
+                          );
+                        },
+                        child: Container(
+                          height: 220,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.black26 : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+                            ),
+                          ),
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(11),
+                                child: Center(
+                                  child: Image.file(
+                                    File(order.images[_selectedIndex].path),
+                                    fit: BoxFit.contain,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    errorBuilder: (_, _, _) => Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.broken_image, size: 48, color: Colors.grey.shade400),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Image not found',
+                                          style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Zoom Indicator Overlay
+                              Positioned(
+                                bottom: 8,
+                                right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.fullscreen_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                              // Image dimension overlay
+                              if (order.images[_selectedIndex].width.isNotEmpty &&
+                                  order.images[_selectedIndex].height.isNotEmpty)
+                                Positioned(
+                                  bottom: 8,
+                                  left: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blueAccent.withValues(alpha: 0.9),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '${order.images[_selectedIndex].width}" × ${order.images[_selectedIndex].height}"',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              // Image index indicator
+                              Positioned(
+                                top: 8,
+                                left: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    '${_selectedIndex + 1} / ${order.images.length}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Thumbnail strip if there are multiple images
+                      if (order.images.length > 1) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 60,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: order.images.length,
+                            itemBuilder: (context, index) {
+                              final isSelected = index == _selectedIndex;
+                              return GestureDetector(
+                                onTap: () => setState(() => _selectedIndex = index),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 150),
+                                  width: 60,
+                                  margin: const EdgeInsets.only(right: 8),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? (isDark ? Colors.blue.shade400 : const Color(0xFF1d6f96))
+                                          : (isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                                      width: isSelected ? 2.5 : 1,
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Image.file(
+                                      File(order.images[index].path),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => const Center(
+                                        child: Icon(Icons.broken_image, size: 20, color: Colors.grey),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ] else ...[
+                      // No images placeholder
+                      Container(
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF3C3C3C) : Colors.grey.shade200,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.photo_library_outlined,
+                              size: 36,
+                              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No images attached to this order',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
