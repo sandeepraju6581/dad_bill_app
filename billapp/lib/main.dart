@@ -310,11 +310,16 @@ class _BillingSuiteState extends State<BillingSuite>
   TextEditingController transportCostController = TextEditingController(
     text: '0',
   );
+  TextEditingController oldBalanceController = TextEditingController(
+    text: '0',
+  );
+  String _lastMatchedCustomerName = '';
 
   // New: Item type selection
   String selectedItemType = 'both'; // 'both' or 'print_only'
   String inputUnit = 'in'; // 'in' or 'mm'
-  int currentSizeMultiple = 3;
+  int widthSizeMultiple = 3;
+  int heightSizeMultiple = 3;
 
   // Glass Polish
   bool applyPolish = false;
@@ -373,6 +378,7 @@ class _BillingSuiteState extends State<BillingSuite>
     holesController.text = '0';
     designCostController.text = '0';
     newCustBalanceController.text = '0';
+    custNameController.addListener(_onCustomerNameChanged);
     loadInvoiceCounter();
     loadCustomers();
     loadSettings();
@@ -396,7 +402,9 @@ class _BillingSuiteState extends State<BillingSuite>
   @override
   void dispose() {
     _tabController.dispose();
+    custNameController.removeListener(_onCustomerNameChanged);
     custNameController.dispose();
+    oldBalanceController.dispose();
     custGstController.dispose();
     itemDescController.dispose();
     widthController.dispose();
@@ -430,7 +438,8 @@ class _BillingSuiteState extends State<BillingSuite>
     if (settingsJson != null) {
       setState(() {
         settings = AppSettings.fromJson(json.decode(settingsJson));
-        currentSizeMultiple = settings.sizeMultiple;
+        widthSizeMultiple = settings.sizeMultiple;
+        heightSizeMultiple = settings.sizeMultiple;
         glassRateController.text = settings.glassRate.toString();
         printRateController.text = settings.printRate.toString();
         paintRateController.text = settings.paintRate.toString();
@@ -444,7 +453,8 @@ class _BillingSuiteState extends State<BillingSuite>
       });
     } else {
       setState(() {
-        currentSizeMultiple = settings.sizeMultiple;
+        widthSizeMultiple = settings.sizeMultiple;
+        heightSizeMultiple = settings.sizeMultiple;
         glassRateController.text = settings.glassRate.toString();
         printRateController.text = settings.printRate.toString();
         paintRateController.text = settings.paintRate.toString();
@@ -586,6 +596,29 @@ class _BillingSuiteState extends State<BillingSuite>
     }
   }
 
+  // Listener for customer name updates to auto-load balance
+  void _onCustomerNameChanged() {
+    final name = custNameController.text.trim();
+    if (name.toLowerCase() != _lastMatchedCustomerName.toLowerCase()) {
+      final matching = customers.where(
+        (c) => c.name.toLowerCase() == name.toLowerCase(),
+      );
+      if (matching.isNotEmpty) {
+        _lastMatchedCustomerName = matching.first.name;
+        setState(() {
+          oldBalanceController.text = matching.first.balance.toStringAsFixed(2);
+        });
+      } else {
+        if (_lastMatchedCustomerName.isNotEmpty) {
+          _lastMatchedCustomerName = '';
+          setState(() {
+            oldBalanceController.text = '0';
+          });
+        }
+      }
+    }
+  }
+
   // Load customers from shared preferences
   Future<void> loadCustomers() async {
     final prefs = await SharedPreferences.getInstance();
@@ -680,8 +713,8 @@ class _BillingSuiteState extends State<BillingSuite>
     String itemType,
     String thickness,
   ) {
-    int rw = roundUpToMultiple(w, currentSizeMultiple);
-    int rh = roundUpToMultiple(h, currentSizeMultiple);
+    int rw = roundUpToMultiple(w, widthSizeMultiple);
+    int rh = roundUpToMultiple(h, heightSizeMultiple);
     double glassAreaSqFt = (rw * rh) / 144;
     double printAreaSqFt = (w.ceil() * h.ceil()) / 144;
 
@@ -820,6 +853,7 @@ class _BillingSuiteState extends State<BillingSuite>
   Future<void> updateCustomerBalance(
     String customerName,
     double billTotal,
+    double oldBalance,
     String billDate,
   ) async {
     Customer? existingCustomer = customers.firstWhere(
@@ -835,7 +869,7 @@ class _BillingSuiteState extends State<BillingSuite>
       customers.add(existingCustomer);
     }
 
-    existingCustomer.balance += billTotal;
+    existingCustomer.balance = oldBalance + billTotal;
     existingCustomer.lastBillDate = billDate;
 
     for (var item in currentBillItems) {
@@ -934,9 +968,10 @@ class _BillingSuiteState extends State<BillingSuite>
     try {
       String invDate = invDateController.text;
       double totalSum = getGrandTotal();
+      double oldBal = double.tryParse(oldBalanceController.text) ?? 0.0;
 
       // Update customer balance
-      await updateCustomerBalance(customerName, totalSum, invDate);
+      await updateCustomerBalance(customerName, totalSum, oldBal, invDate);
 
       // Load font from bundled assets — guarantees ₹ glyph is present
       final regularFontData = await rootBundle.load(
@@ -1217,19 +1252,54 @@ class _BillingSuiteState extends State<BillingSuite>
                         pw.Text(
                           'GRAND TOTAL',
                           style: pw.TextStyle(
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: pw.FontWeight.bold,
                           ),
                         ),
                         pw.Text(
                           '₹ ${totalSum.toStringAsFixed(2)}',
                           style: pw.TextStyle(
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: pw.FontWeight.bold,
                           ),
                         ),
                       ],
                     ),
+                    if (oldBal != 0.0) ...[
+                      pw.SizedBox(height: 4),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('Old Balance:', style: pw.TextStyle(fontSize: 12)),
+                          pw.Text(
+                            '₹ ${oldBal.toStringAsFixed(2)}',
+                            style: pw.TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
+                      pw.Divider(),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            'TOTAL OUTSTANDING',
+                            style: pw.TextStyle(
+                              fontSize: 14,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.blue900,
+                            ),
+                          ),
+                          pw.Text(
+                            '₹ ${(totalSum + oldBal).toStringAsFixed(2)}',
+                            style: pw.TextStyle(
+                              fontSize: 14,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.blue900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1238,7 +1308,7 @@ class _BillingSuiteState extends State<BillingSuite>
             pw.Container(
               alignment: pw.Alignment.centerRight,
               child: pw.Text(
-                'Amount in words: Rupees ${numberToWords(totalSum.toInt())} Only',
+                'Amount in words: Rupees ${numberToWords((totalSum + oldBal).toInt())} Only',
                 style: pw.TextStyle(
                   fontSize: 11,
                   fontStyle: pw.FontStyle.italic,
@@ -1899,6 +1969,8 @@ class _BillingSuiteState extends State<BillingSuite>
                 currentBillItems.clear();
                 custNameController.clear();
                 custGstController.clear();
+                oldBalanceController.text = '0';
+                _lastMatchedCustomerName = '';
                 itemDescController.clear();
                 widthController.clear();
                 heightController.clear();
@@ -2102,6 +2174,55 @@ class _BillingSuiteState extends State<BillingSuite>
                         borderRadius: BorderRadius.all(Radius.circular(12)),
                       ),
                     ),
+                  ),
+                  if (custNameController.text.isNotEmpty) ...[
+                    (() {
+                      final query = custNameController.text.toLowerCase();
+                      final matches = customers.where((c) =>
+                          c.name.toLowerCase().contains(query) &&
+                          c.name.toLowerCase() != query).toList();
+                      if (matches.isEmpty) return const SizedBox.shrink();
+                      return Container(
+                        height: 40,
+                        margin: const EdgeInsets.only(top: 8),
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: matches.length,
+                          itemBuilder: (context, index) {
+                            final customer = matches[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ActionChip(
+                                avatar: const Icon(Icons.person, size: 16),
+                                label: Text('${customer.name} (₹${customer.balance.toStringAsFixed(0)})'),
+                                onPressed: () {
+                                  setState(() {
+                                    custNameController.text = customer.name;
+                                    oldBalanceController.text = customer.balance.toStringAsFixed(2);
+                                    _lastMatchedCustomerName = customer.name;
+                                  });
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    }()),
+                  ],
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: oldBalanceController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Old Balance (₹)',
+                      prefixIcon: Icon(Icons.account_balance_wallet),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                    ),
+                    onChanged: (val) {
+                      setState(() {});
+                    },
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -2317,25 +2438,60 @@ class _BillingSuiteState extends State<BillingSuite>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  RadioGroup<int>(
-                    groupValue: currentSizeMultiple,
-                    onChanged: (val) {
-                      setState(() {
-                        currentSizeMultiple = val!;
-                      });
-                    },
-                    child: Row(
-                      children: [
-                        const Text(
-                          'Size Multiple:',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioGroup<int>(
+                          groupValue: widthSizeMultiple,
+                          onChanged: (val) {
+                            setState(() {
+                              widthSizeMultiple = val!;
+                            });
+                          },
+                          child: Row(
+                            children: [
+                              const Text(
+                                'W Mult:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const Radio<int>(value: 3),
+                              const Text('3', style: TextStyle(fontSize: 12)),
+                              const Radio<int>(value: 6),
+                              const Text('6', style: TextStyle(fontSize: 12)),
+                            ],
+                          ),
                         ),
-                        const Radio<int>(value: 3),
-                        const Text('3 Multiple'),
-                        const Radio<int>(value: 6),
-                        const Text('6 Multiple'),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: RadioGroup<int>(
+                          groupValue: heightSizeMultiple,
+                          onChanged: (val) {
+                            setState(() {
+                              heightSizeMultiple = val!;
+                            });
+                          },
+                          child: Row(
+                            children: [
+                              const Text(
+                                'H Mult:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const Radio<int>(value: 3),
+                              const Text('3', style: TextStyle(fontSize: 12)),
+                              const Radio<int>(value: 6),
+                              const Text('6', style: TextStyle(fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -2692,6 +2848,44 @@ class _BillingSuiteState extends State<BillingSuite>
                           ),
                         ],
                       ),
+                      if (double.tryParse(oldBalanceController.text) != null &&
+                          (double.tryParse(oldBalanceController.text) ?? 0.0) != 0.0) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            const Text(
+                              'Old Balance: ',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            Text(
+                              '₹ ${(double.tryParse(oldBalanceController.text) ?? 0.0).toStringAsFixed(2)}',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            const Text(
+                              'TOTAL OUTSTANDING: ',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '₹ ${(getGrandTotal() + (double.tryParse(oldBalanceController.text) ?? 0.0)).toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -3301,7 +3495,8 @@ class _BillingSuiteState extends State<BillingSuite>
                       if (val != null) {
                         setState(() {
                           settings.sizeMultiple = val;
-                          currentSizeMultiple = val; // Sync dynamic billing choice
+                          widthSizeMultiple = val; // Sync dynamic billing choice
+                          heightSizeMultiple = val; // Sync dynamic billing choice
                         });
                         saveSettings();
                       }
@@ -3812,7 +4007,8 @@ class _BillingSuiteState extends State<BillingSuite>
                                     settings.printRate = 180.0;
                                     settings.paintRate = 100.0;
                                     settings.sizeMultiple = 3;
-                                    currentSizeMultiple = 3;
+                                    widthSizeMultiple = 3;
+                                    heightSizeMultiple = 3;
                                     settings.thicknessRates = {
                                       '4mm': 55.0,
                                       '5mm': 65.0,
