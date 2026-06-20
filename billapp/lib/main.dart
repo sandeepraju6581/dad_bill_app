@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'orders_page.dart';
+import 'employees_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -370,9 +371,9 @@ class _BillingSuiteState extends State<BillingSuite>
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 5,
+      length: 6,
       vsync: this,
-    ); // 5 tabs: Bill, Customers, Orders, Saved Bills, Settings
+    ); // 6 tabs: Bill, Customers, Orders, Employees, Saved Bills, Settings
     invDateController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
     qtyController.text = '1';
     holesController.text = '0';
@@ -2104,6 +2105,8 @@ class _BillingSuiteState extends State<BillingSuite>
             color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
             child: TabBar(
               controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               labelColor: isDark ? Colors.blue.shade300 : Colors.blue.shade800,
               unselectedLabelColor: Colors.grey,
               indicatorColor: isDark
@@ -2122,6 +2125,10 @@ class _BillingSuiteState extends State<BillingSuite>
                   text: 'Orders',
                 ),
                 Tab(
+                  icon: Icon(Icons.badge, size: 20),
+                  text: 'Employees',
+                ),
+                Tab(
                   icon: Icon(Icons.folder_shared, size: 20),
                   text: 'Saved Bills',
                 ),
@@ -2138,6 +2145,7 @@ class _BillingSuiteState extends State<BillingSuite>
                 _buildBillingTab(),
                 _buildCustomersTab(),
                 const OrdersPage(),
+                const EmployeesPage(),
                 _buildSavedBillsTab(),
                 _buildSettingsTab(),
               ],
